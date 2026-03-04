@@ -21,15 +21,8 @@ jobs:
             - name: Checkout lone-star-contacts
               uses: actions/checkout@v4
 
-            - name: Clone lone-star-ui (sibling)
-              run: git clone https://github.com/sethdavis512/lone-star-ui.git ../lone-star-ui
-
             - name: Setup Bun
               uses: oven-sh/setup-bun@v2
-
-            - name: Build lone-star-ui
-              working-directory: ../lone-star-ui
-              run: bun install --frozen-lockfile && bun run build
 
             - name: Install dependencies
               run: bun install --frozen-lockfile
