@@ -11,7 +11,11 @@ import {
     Alert,
     AlertTitle,
     AlertDescription,
-    Avatar
+    ProfileCard,
+    ConfirmDialog,
+    ToastProvider,
+    Toaster,
+    useToastManager
 } from 'lone-star-ui';
 
 type Status = 'friend' | 'colleague' | 'family' | 'acquaintance';
@@ -106,12 +110,23 @@ const DEFAULT_FORM = {
 };
 
 export default function App() {
+    return (
+        <ToastProvider>
+            <AppContent />
+        </ToastProvider>
+    );
+}
+
+function AppContent() {
+    const { add } = useToastManager();
     const [contacts, setContacts] = useState<Contact[]>(SEED_CONTACTS);
     const [search, setSearch] = useState('');
     const [form, setForm] = useState(DEFAULT_FORM);
     const [adding, setAdding] = useState(false);
-    const [deletedName, setDeletedName] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [contactToDelete, setContactToDelete] = useState<Contact | null>(
+        null
+    );
 
     const COLORS: AvatarColor[] = [
         'sky',
@@ -141,14 +156,23 @@ export default function App() {
             color: COLORS[contacts.length % COLORS.length]
         };
         setContacts((prev) => [newContact, ...prev]);
+        add({
+            title: 'Contact added',
+            description: `${form.name} was added to your contacts.`
+        });
         setForm(DEFAULT_FORM);
         setAdding(false);
     }
 
-    function handleDelete(contact: Contact) {
-        setContacts((prev) => prev.filter((c) => c.id !== contact.id));
-        setDeletedName(contact.name);
-        setTimeout(() => setDeletedName(null), 3000);
+    function handleDeleteConfirm() {
+        if (!contactToDelete) return;
+        const name = contactToDelete.name;
+        setContacts((prev) => prev.filter((c) => c.id !== contactToDelete.id));
+        setContactToDelete(null);
+        add({
+            title: 'Contact removed',
+            description: `${name} was deleted from your contacts.`
+        });
     }
 
     return (
@@ -166,16 +190,8 @@ export default function App() {
                 </Badge>
             </header>
 
-            <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
-                {/* Toast alerts */}
-                {deletedName && (
-                    <Alert variant="warning">
-                        <AlertTitle>Contact removed</AlertTitle>
-                        <AlertDescription>
-                            {deletedName} was deleted from your contacts.
-                        </AlertDescription>
-                    </Alert>
-                )}
+            <main className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+                {/* Form validation error */}
                 {error && (
                     <Alert variant="error">
                         <AlertTitle>Hold your horses</AlertTitle>
@@ -250,7 +266,7 @@ export default function App() {
                                 }
                             />
                             <select
-                                className="col-span-2 h-10 rounded-md border border-pecan/25 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky focus:ring-offset-2"
+                                className="col-span-2 h-10 rounded-md border border-pecan/25 bg-surface px-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky focus:ring-offset-2"
                                 value={form.status}
                                 onChange={(e) =>
                                     setForm((f) => ({
@@ -283,7 +299,7 @@ export default function App() {
                     </Card>
                 )}
 
-                {/* Contact list */}
+                {/* Contact grid */}
                 {filtered.length === 0 ? (
                     <Alert variant="info">
                         <AlertTitle>No contacts found</AlertTitle>
@@ -294,59 +310,55 @@ export default function App() {
                         </AlertDescription>
                     </Alert>
                 ) : (
-                    <div className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                         {filtered.map((contact) => (
-                            <Card key={contact.id}>
-                                <CardContent className="flex items-center gap-4 py-4">
-                                    <Avatar
-                                        initials={getInitials(contact.name)}
-                                        color={contact.color}
-                                        size="lg"
-                                        alt={contact.name}
-                                    />
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <span className="font-semibold text-pecan truncate">
-                                                {contact.name}
-                                            </span>
-                                            <Badge
-                                                variant={
-                                                    STATUS_BADGE[contact.status]
-                                                }
-                                            >
-                                                {contact.status}
-                                            </Badge>
-                                        </div>
-                                        <p className="text-sm text-pecan/60 truncate">
-                                            {contact.email}
-                                        </p>
-                                        <div className="flex gap-4 mt-1">
-                                            {contact.phone && (
-                                                <span className="text-xs text-pecan/50">
-                                                    {contact.phone}
-                                                </span>
-                                            )}
-                                            {contact.city && (
-                                                <span className="text-xs text-pecan/50">
-                                                    {contact.city}, TX
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
+                            <ProfileCard
+                                key={contact.id}
+                                name={contact.name}
+                                role={contact.email}
+                                bio={[
+                                    contact.phone,
+                                    contact.city && `${contact.city}, TX`
+                                ]
+                                    .filter(Boolean)
+                                    .join(' · ')}
+                                initials={getInitials(contact.name)}
+                                avatarColor={contact.color}
+                                badge={contact.status}
+                                badgeVariant={STATUS_BADGE[contact.status]}
+                                className="w-full"
+                                actions={
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="text-prickly-pear hover:bg-prickly-pear/10 shrink-0"
-                                        onClick={() => handleDelete(contact)}
+                                        className="text-prickly-pear hover:bg-prickly-pear/10"
+                                        onClick={() =>
+                                            setContactToDelete(contact)
+                                        }
                                     >
                                         Remove
                                     </Button>
-                                </CardContent>
-                            </Card>
+                                }
+                            />
                         ))}
                     </div>
                 )}
             </main>
+
+            {/* Delete confirmation dialog */}
+            <ConfirmDialog
+                open={contactToDelete !== null}
+                onOpenChange={(open) => !open && setContactToDelete(null)}
+                title="Remove contact?"
+                description={`Are you sure you want to remove ${contactToDelete?.name}? This action cannot be undone.`}
+                variant="destructive"
+                confirmLabel="Remove"
+                onConfirm={handleDeleteConfirm}
+                onCancel={() => setContactToDelete(null)}
+            />
+
+            {/* Toast notifications */}
+            <Toaster />
         </div>
     );
 }
